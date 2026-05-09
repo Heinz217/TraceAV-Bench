@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.ipynb_checkpoints/
+
+# Benchmark data downloaded from Hugging Face — do not commit
+/data/
+/videos/
+~/traceav_videos/
+
+# Evaluator outputs
+eval/**/eval_results/
+runs/
+out/
+*.bak
+*.bak_*
+
+# Misc
+*.log

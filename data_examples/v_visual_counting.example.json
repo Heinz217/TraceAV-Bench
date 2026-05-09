@@ -1,0 +1,203 @@
+{
+  "task_type": "v_visual_counting",
+  "video_count": 2,
+  "question_count": 2,
+  "items": [
+    {
+      "question_id": 1,
+      "video_id": "video2",
+      "question": "After the Lead Singer first asks the crowd to turn on their phone lights so the stadium will glow, how many distinct times is the audience later shown in wide or mid shots where a large portion of them are visibly holding up lit phones?",
+      "options": {
+        "A": "7",
+        "B": "11",
+        "C": "9",
+        "D": "5"
+      },
+      "question_type": "single",
+      "correct_options": [
+        "C"
+      ],
+      "answer_text": "9",
+      "minute_hop_count": 40,
+      "hop_length_label": "long",
+      "trajectory_with_timestamps": [
+        {
+          "event_id": 6,
+          "evidence": "She immediately engages the audience, asking, \"Do you have a light? Do you have a OnePlus phone? Why don't you turn the light on?\" and declares, \"And we'll make this whole stadium glow.\"",
+          "label": "visual",
+          "reason": "This is the first explicit request for phone lights; you see her speaking into the microphone and addressing the crowd, which visually marks when counting should start.",
+          "timestamp_minute": 42,
+          "event_time_range": {
+            "start_minute": 41,
+            "end_minute": 44
+          }
+        },
+        {
+          "event_id": 6,
+          "evidence": "The camera then cuts to the audience, a sea of fans holding up their phones, creating a starry effect with their illuminated screens, responding to her call.",
+          "label": "visual",
+          "reason": "Establishes what a wide, post-request phone-light shot looks like: a large portion of the audience with lit phones.",
+          "timestamp_minute": 42,
+          "event_time_range": {
+            "start_minute": 41,
+            "end_minute": 44
+          }
+        },
+        {
+          "event_id": 8,
+          "evidence": "The audience responds with cheers, raising their hands and phones, creating a sea of twinkling lights.",
+          "label": "visual",
+          "reason": "Shows one distinct later moment where a large section of the crowd is visibly filled with phone lights after the initial request.",
+          "timestamp_minute": 46,
+          "event_time_range": {
+            "start_minute": 46,
+            "end_minute": 46
+          }
+        },
+        {
+          "event_id": 9,
+          "evidence": "The audience, visible in the foreground, holds up phones, creating a sea of twinkling lights, and cheers enthusiastically.",
+          "label": "visual",
+          "reason": "Another separate, clearly framed wide or mid shot where many audience phone lights are visible at once.",
+          "timestamp_minute": 49,
+          "event_time_range": {
+            "start_minute": 47,
+            "end_minute": 51
+          }
+        },
+        {
+          "event_id": 10,
+          "evidence": "The densely packed audience is shown in wide shots, highly engaged, many holding up phones to record, some with signs, cheering loudly and singing along enthusiastically… creating a sea of twinkling phone screens.",
+          "label": "visual",
+          "reason": "Counts as an additional distinct wide crowd shot dominated by lit phones.",
+          "timestamp_minute": 52,
+          "event_time_range": {
+            "start_minute": 52,
+            "end_minute": 52
+          }
+        },
+        {
+          "event_id": 11,
+          "evidence": "The camera cuts to a wide-angle shot of the entire D.Y. PATIL STADIUM, revealing a massive crowd of Audience Members, many holding up phones to record, their faces lit by the stage lights…",
+          "label": "visual",
+          "reason": "Provides yet another separate wide view of the stadium with many visible phone lights.",
+          "timestamp_minute": 53,
+          "event_time_range": {
+            "start_minute": 53,
+            "end_minute": 57
+          }
+        },
+        {
+          "event_id": 11,
+          "evidence": "As the Lead Singer moves onto the long Stage Extension, engaging directly with the audience, fans cheer loudly and raise their phones, creating a sea of twinkling lights.",
+          "label": "visual",
+          "reason": "Adds a further distinct mid/wide shot centred on the Stage Extension with a clearly glowing-phone crowd.",
+          "timestamp_minute": 55,
+          "event_time_range": {
+            "start_minute": 53,
+            "end_minute": 57
+          }
+        },
+        {
+          "event_id": 16,
+          "evidence": "The audience is visible in the foreground, many holding up phones to record, their faces lit by the stage lights, actively participating with cheers and screams throughout the performance.",
+          "label": "visual",
+          "reason": "Later in the show, another visually distinct moment where many phone screens are raised and lit in wide/mid view.",
+          "timestamp_minute": 67,
+          "event_time_range": {
+            "start_minute": 67,
+            "end_minute": 79
+          }
+        },
+        {
+          "event_id": 16,
+          "evidence": "Audience Members are visibly engaged, cheering loudly, holding up phones, making heart shapes, and singing along to the catchy chorus…",
+          "label": "visual",
+          "reason": "Provides an additional wide or mid crowd shot dominated by raised, glowing phones during the same later sequence.",
+          "timestamp_minute": 72,
+          "event_time_range": {
+            "start_minute": 67,
+            "end_minute": 79
+          }
+        },
+        {
+          "event_id": 17,
+          "evidence": "The camera alternates between close-ups of her expressive performance and wide shots showcasing the massive crowd, many holding up phones to record, making heart shapes, and cheering loudly…",
+          "label": "visual",
+          "reason": "Near the end, shows another distinct wide shot where the stadium is visibly dotted with phone lights.",
+          "timestamp_minute": 81,
+          "event_time_range": {
+            "start_minute": 80,
+            "end_minute": 84
+          }
+        },
+        {
+          "event_id": 17,
+          "evidence": "The performance culminates in a wide shot of the entire stadium, with the Lead Singer centered on stage, the crowd illuminated by phone lights…",
+          "label": "visual",
+          "reason": "Final aerial/wide view clearly showing the whole stadium lit by phone screens, counted as a separate occurrence.",
+          "timestamp_minute": 80,
+          "event_time_range": {
+            "start_minute": 80,
+            "end_minute": 84
+          }
+        }
+      ],
+      "difficulty": "medium"
+    },
+    {
+      "question_id": 2,
+      "video_id": "video7",
+      "question": "After the Skeletal Figure with Candelabra Head finishes negotiating payment with the council in the dining hall and runs out into the streets and courtyards, how many distinct times is he visually shown either raising the pipe to his lips or actively playing it to control or confront the rats?",
+      "options": {
+        "A": "2 times",
+        "B": "5 times",
+        "C": "3 times",
+        "D": "4 times"
+      },
+      "question_type": "single",
+      "correct_options": [
+        "C"
+      ],
+      "answer_text": "3 times",
+      "minute_hop_count": 2,
+      "hop_length_label": "short",
+      "trajectory_with_timestamps": [
+        {
+          "event_id": 7,
+          "evidence": "A high-pitched, almost squeaky pipe sound is heard as the figure exits the hall, running down a stone staircase and into a cobblestone courtyard. Here, the figure, now identified by narration as \"the piper,\" is seen from a distance, running past a Group of Townsfolk/Merchants gathered under a makeshift awning. The narrator describes how \"the piper stepped, smiling first a little smile as if he knew what magic slept in his quiet pipe the while. Then like a musical adept, to blow the pipe his lips he wrinkled, and green and blue his sharp eyes twinkled, like a candle flame where salt is sprinkled.\"",
+          "label": "visual",
+          "reason": "The conditional starting point (after leaving the dining hall post‑negotiation) and the first counted action (wrinkling his lips to blow the pipe) are visible in his body posture and pipe-to-mouth action.",
+          "timestamp_minute": 12,
+          "event_time_range": {
+            "start_minute": 12,
+            "end_minute": 13
+          }
+        },
+        {
+          "event_id": 7,
+          "evidence": "The video opens with a close-up of the Skeletal Figure with Candelabra Head, a puppet-like character with a pale, elongated face, wild white hair, and tattered earth-toned tunic with a red sash and white gloves, playing a pipe from which \"trill notes\" are heard.",
+          "label": "visual",
+          "reason": "This separate close-up clearly shows him actively playing the pipe in the courtyard sequence, providing a distinct second instance of the counted action.",
+          "timestamp_minute": 13,
+          "event_time_range": {
+            "start_minute": 12,
+            "end_minute": 13
+          }
+        },
+        {
+          "event_id": 8,
+          "evidence": "The camera then reveals the Skeletal Figure with Candelabra Head, a puppet-like character with wild white hair, a long nose, and tattered earth-toned tunic with a red sash, playing a pipe with exaggerated, jerky movements.",
+          "label": "visual",
+          "reason": "This shot in the later chase sequence again visually shows him playing the pipe, giving a third distinct occurrence after the council negotiation has ended.",
+          "timestamp_minute": 14,
+          "event_time_range": {
+            "start_minute": 14,
+            "end_minute": 14
+          }
+        }
+      ],
+      "difficulty": "medium"
+    }
+  ]
+}

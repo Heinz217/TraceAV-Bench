@@ -1,0 +1,137 @@
+{
+  "task_type": "mh_visual_to_audio_deception",
+  "video_count": 2,
+  "question_count": 2,
+  "items": [
+    {
+      "question_id": 1,
+      "video_id": "video3",
+      "question": "During the gym sequences where the man with braided hair trains while his unreleased tracks play, what, if anything, is heard from a gym intercom or staff announcement over the speakers?",
+      "options": {
+        "A": "An overhead announcement is made that a group fitness class is starting soon and invites members to join in Studio A.",
+        "B": "No overhead intercom or staff announcement is heard at any point; only his music, ambient gym noises, and nearby conversation are audible.",
+        "C": "A staff member announces over the intercom that the gym will be closing soon and reminds members to finish their last sets.",
+        "D": "A recorded announcement plays reminding members to re-rack their weights and wipe down the machines after use."
+      },
+      "question_type": "single",
+      "correct_options": [
+        "B"
+      ],
+      "answer_text": "No overhead intercom or staff announcement is heard at any point; only his music, ambient gym noises, and nearby conversation are audible.",
+      "minute_hop_count": 5,
+      "hop_length_label": "medium",
+      "trajectory_with_timestamps": [
+        {
+          "event_id": 8,
+          "evidence": "The scene then transitions to an indoor gym setting, where the same man is now seated at a table, still in his black hoodie, smiling and laughing. He makes a 'woo' sound, then engages in a lively conversation with someone off-camera, who asks 'What you got? A camera on?' and comments 'You lost weight.' The man responds, 'You can come in here and exercise all day and do all types of different shit. I'm trying to get big, nigga. I can't just sit in here and play,' amidst laughter and the ambient sounds of the gym, including faint clanking and general hum.",
+          "label": "audio-visual",
+          "reason": "The evidence shows he is conversing with another person and there are only conversational voices and ambient gym noise; no staff or intercom announcement is mentioned, which is established by listening and watching the interaction.",
+          "timestamp_minute": 21,
+          "event_time_range": {
+            "start_minute": 21,
+            "end_minute": 23
+          }
+        },
+        {
+          "event_id": 8,
+          "evidence": "In the background, a glass door with a 'Changing Rooms' sign and posted gym hours is visible. The man is engaged in a lively conversation, smiling and gesturing expressively, as he discusses 'sit-ups' and accuses someone of 'cheating,' with another voice interjecting 'Nah, niggas just making up.' He picks up a small white object, then grabs a large blue water bottle with a red cap, taking a long drink while continuing his animated discussion about doing '25' sit-ups, then '10,' and later '100 push-ups,' declaring, 'we creating monsters in here.'",
+          "label": "audio-visual",
+          "reason": "This segment further establishes that all heard speech is casual conversation about sit-ups and push-ups; there is still no indication of any overhead gym intercom or staff announcement, which must be inferred from both visuals and spoken content.",
+          "timestamp_minute": 22,
+          "event_time_range": {
+            "start_minute": 21,
+            "end_minute": 23
+          }
+        },
+        {
+          "event_id": 9,
+          "evidence": "After an initial quiet period, a hip-hop/trap track titled 'Nate B - Librarian (Unreleased)' (as indicated by on-screen text) begins, featuring a melancholic, eerie synth melody. A male rapper, Nate B, then delivers introspective lyrics, addressing themes of 'dirty money,' a 'scarier' reality, and emotional detachment, stating 'F*** love I do not need it.'",
+          "label": "audio-visual",
+          "reason": "On-screen text and the audible music confirm that the main added sound layer in the gym is his own unreleased track, not any spoken PA announcement.",
+          "timestamp_minute": 24,
+          "event_time_range": {
+            "start_minute": 24,
+            "end_minute": 27
+          }
+        },
+        {
+          "event_id": 9,
+          "evidence": "Around the 34-second mark, the music fades slightly, and the distinct clanking of weights from the leg press machine becomes audible, accompanied by male voices engaging in conversation and encouragement, with phrases such as \"Put another one on\" and \"I want to see this nigga go.\"",
+          "label": "audio-visual",
+          "reason": "This evidence shows that, besides the music, only nearby male voices encouraging his lift are audible; there is no mention of a disembodied staff or intercom voice.",
+          "timestamp_minute": 25,
+          "event_time_range": {
+            "start_minute": 24,
+            "end_minute": 27
+          }
+        },
+        {
+          "event_id": 9,
+          "evidence": "The track features a male vocalist singing emotionally about relationships, with lyrics like \"It's been a while since I thought about you and I, hope that we can make it right,\" and later, \"Looking for a man with all the emotion, your body I control it, I'm the man with the emotion.\" After completing his set, the man dismounts the machine, adjusts his hoodie, and walks away, passing a Blue Water Bottle on the floor. The camera then pans to reveal a wider view of the spacious gym, showcasing various Gym Equipment including weight benches, dumbbell racks, and cable systems, as a Woman in Teal Top briefly walks past in the background.",
+          "label": "audio-visual",
+          "reason": "The focus remains on the music track and ambient workout visuals; no separate PA or staff announcement is described, supporting the conclusion that no such announcement occurs during these gym sequences.",
+          "timestamp_minute": 26,
+          "event_time_range": {
+            "start_minute": 24,
+            "end_minute": 27
+          }
+        }
+      ],
+      "difficulty": "easy"
+    },
+    {
+      "question_id": 2,
+      "video_id": "video5",
+      "question": "During the Young Girl’s final ascent into the blue-lit clearing, when her staff flares and the glowing sigil forms beneath her feet for the last snowy confrontation with the colossal shadowy entity, what does she audibly call out at the exact moment her meditative sigil power ignites?",
+      "options": {
+        "A": "She remains silent at that instant, with only her exertion, music, and energy sound effects heard as the sigil ignites.",
+        "B": "She chants a brief incantation that sounds like \"Koshie no tame,\" right as the sigil seals under her feet.",
+        "C": "She calls out a sharp, spell-like cry of \"Toshi!\" as the sigil flares to full brightness.",
+        "D": "She shouts a focused attack name, \"Mountain Shrine Strike,\" synchronized with the sigil’s burst of light."
+      },
+      "question_type": "single",
+      "correct_options": [
+        "A"
+      ],
+      "answer_text": "She remains silent at that instant, with only her exertion, music, and energy sound effects heard as the sigil ignites.",
+      "minute_hop_count": 4,
+      "hop_length_label": "medium",
+      "trajectory_with_timestamps": [
+        {
+          "event_id": 24,
+          "evidence": "The music becomes epic and action-oriented as the Young Girl, now wielding a glowing bow, confronts a monstrous, biomechanical entity, which roars as she unleashes whooshing energy arrows in a chaotic battle. The confrontation culminates in a burst of pink energy, with the Young Girl and the masked figure standing amidst a radiant, glowing ring in the sky, accompanied by a climactic orchestral swell and powerful energy release sounds.",
+          "label": "audio-visual",
+          "reason": "Shows that major combat and power usage are often paired with strong audio (music, roars, effects), setting up the expectation that big powers may have associated vocal calls.",
+          "timestamp_minute": 40,
+          "event_time_range": {
+            "start_minute": 39,
+            "end_minute": 41
+          }
+        },
+        {
+          "event_id": 25,
+          "evidence": "In a misty, blue-lit clearing, the Young Girl, clad in dark, armored attire with glowing blue accents, stands before ethereal, hooded Stone-like Creatures. With a strained whisper, she states, \"You can't stay here,\" before raising her staff, its glowing blue orb pulsing with energy as she lets out an \"Uh!\" of exertion.",
+          "label": "audio-visual",
+          "reason": "Establishes that during spiritually-charged, sigil-related actions she sometimes speaks aloud while activating power, making it plausible she might shout a spell name later.",
+          "timestamp_minute": 42,
+          "event_time_range": {
+            "start_minute": 42,
+            "end_minute": 43
+          }
+        },
+        {
+          "event_id": 26,
+          "evidence": "Ethereal, mystical music swells with shimmering energy sounds as her expression shifts to serene resolve, activating her staff which emits radiant blue energy. She ascends through the air, surrounded by swirling particles and ethereal light, before landing in the center of a mystical, blue-lit clearing. She stands at a circular stone platform where a glowing sigil forms beneath her feet, radiating light and particles. The Elderly Man joins her, gesturing with concern and wisdom. In a calm, wise male voice, he advises, \"Take it slow. You've traveled a great distance. Crossing over is no easy task.\" The Young Girl, in a determined yet reflective female voice, responds, \"Though his spirit was different. Stronger than the others. He was able to push me from his memories.\"",
+          "label": "audio-visual",
+          "reason": "This is the key moment of the staff activation and sigil formation; the audio description makes clear that only dialogue before/after and nonverbal exertion, music, and effects are heard—no shouted spell name at the instant of ignition.",
+          "timestamp_minute": 44,
+          "event_time_range": {
+            "start_minute": 44,
+            "end_minute": 45
+          }
+        }
+      ],
+      "difficulty": "medium"
+    }
+  ]
+}

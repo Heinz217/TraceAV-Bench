@@ -1,0 +1,115 @@
+{
+  "task_type": "av_information_retrieval",
+  "video_count": 2,
+  "question_count": 2,
+  "items": [
+    {
+      "question_id": 1,
+      "video_id": "video1",
+      "question": "Within the video’s various technical-category Oscar presentations, which film is explicitly shown winning more than one different technical Oscar across separate ceremonies?",
+      "options": {
+        "A": "1917",
+        "B": "Joker",
+        "C": "Avengers: Endgame",
+        "D": "The Irishman"
+      },
+      "question_type": "single",
+      "correct_options": [
+        "A"
+      ],
+      "answer_text": "1917",
+      "minute_hop_count": 15,
+      "hop_length_label": "long",
+      "trajectory_with_timestamps": [
+        {
+          "event_id": 18,
+          "evidence": "The presenter then declared Roger Deakins the winner for '1917,' prompting enthusiastic applause from the audience...",
+          "label": "audio-visual",
+          "reason": "The winner and film title are given by spoken announcement and supported by on-screen visuals of the stage and audience.",
+          "timestamp_minute": 46,
+          "event_time_range": {
+            "start_minute": 46,
+            "end_minute": 47
+          }
+        },
+        {
+          "event_id": 24,
+          "evidence": "The segment ... transitioning to a dramatic montage of '1917' before the female announcer declared it the winner for Visual Effects. Guillaume Rocheron, Greg Butler, and Dominic Tuohy accepted the Oscar, with on-screen text confirming their win.",
+          "label": "audio-visual",
+          "reason": "Identifying '1917' as winner for Visual Effects requires hearing the announcer and seeing the winners and confirming text on screen.",
+          "timestamp_minute": 59,
+          "event_time_range": {
+            "start_minute": 58,
+            "end_minute": 59
+          }
+        },
+        {
+          "event_id": 25,
+          "evidence": "The montage featured clips from ... '1917' (Naomi Donne, Tristan Versluis, Rebecca Cole), with each film and team identified. The montage concluded with the nominees for '1917' displayed on a large screen, accompanied by loud audience applause, as the host prepared to announce the winner.",
+          "label": "audio-visual",
+          "reason": "This confirms '1917' as a recurring technical-category title (here as a nominee in Makeup and Hairstyling) via narrated names and on-screen text.",
+          "timestamp_minute": 61,
+          "event_time_range": {
+            "start_minute": 60,
+            "end_minute": 61
+          }
+        }
+      ],
+      "difficulty": "medium"
+    },
+    {
+      "question_id": 2,
+      "video_id": "video2",
+      "question": "During the basketball‑court–themed 'Swish Swish' segment where the Lead Singer repeatedly sings 'But they don't know what is what,' what color microphone is she using at that time?",
+      "options": {
+        "A": "Red microphone",
+        "B": "Black microphone",
+        "C": "Pink microphone",
+        "D": "Green microphone"
+      },
+      "question_type": "single",
+      "correct_options": [
+        "A"
+      ],
+      "answer_text": "Red microphone",
+      "minute_hop_count": 28,
+      "hop_length_label": "long",
+      "trajectory_with_timestamps": [
+        {
+          "event_id": 6,
+          "evidence": "She passionately sings into a bright green microphone.",
+          "label": "visual",
+          "reason": "The evidence about the microphone color (bright green) is obtained from what is visually shown, not from spoken words.",
+          "timestamp_minute": 41,
+          "event_time_range": {
+            "start_minute": 41,
+            "end_minute": 44
+          }
+        },
+        {
+          "event_id": 16,
+          "evidence": "The Lead Singer, in a green and black zebra-print off-the-shoulder jumpsuit with large green hoop earrings, emerges center stage, holding a red microphone and singing with expressive gestures.",
+          "label": "visual",
+          "reason": "The evidence specifying that the microphone is red during the basketball-court 'Swish Swish' segment comes from the visual description.",
+          "timestamp_minute": 67,
+          "event_time_range": {
+            "start_minute": 67,
+            "end_minute": 79
+          }
+        },
+        {
+          "event_id": 16,
+          "evidence": "Pixelated Humanoid Figures appear on the Stage Screens, moving in sync with the music, while the Lead Singer repeatedly sings 'But they don't know what is what.'",
+          "label": "audio-visual",
+          "reason": "Identifying the exact segment requires both hearing the lyric 'But they don't know what is what' (audio) and matching it to the described basketball-court visual sequence (video).",
+          "timestamp_minute": 69,
+          "event_time_range": {
+            "start_minute": 67,
+            "end_minute": 79
+          }
+        }
+      ],
+      "difficulty": "hard"
+    }
+  ]
+}

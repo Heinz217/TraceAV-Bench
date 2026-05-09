@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Timeline 3D bevel edge">
+  <!-- Raised-bevel edge: bright top edge + dark bottom edge for tactile feel -->
+  <defs>
+    <linearGradient id="g3c3-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4A6885"/>
+      <stop offset="100%" stop-color="#2C4360"/>
+    </linearGradient>
+    <linearGradient id="g3c3-top" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="g3c3-bot" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.45"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" ry="14" fill="url(#g3c3-bg)"/>
+  <!-- Top bevel highlight -->
+  <rect x="3" y="3" width="58" height="14" rx="13" ry="13" fill="url(#g3c3-top)" opacity="0.45"/>
+  <!-- Bottom bevel shadow -->
+  <rect x="3" y="47" width="58" height="14" rx="13" ry="13" fill="url(#g3c3-bot)" opacity="0.55"/>
+  <!-- Crisp 1px outline -->
+  <rect x="2" y="2" width="60" height="60" rx="14" ry="14"
+        fill="none" stroke="#1A2A3D" stroke-width="0.8"/>
+
+  <line x1="10" y1="42" x2="54" y2="42" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" opacity="0.55"/>
+  <g stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" opacity="0.55">
+    <line x1="12" y1="40" x2="12" y2="44"/>
+    <line x1="22" y1="40" x2="22" y2="44"/>
+    <line x1="32" y1="40" x2="32" y2="44"/>
+    <line x1="42" y1="40" x2="42" y2="44"/>
+    <line x1="52" y1="40" x2="52" y2="44"/>
+  </g>
+  <path d="M 14 42 C 18 24, 24 22, 28 30 S 38 38, 42 18 S 50 22, 52 26"
+        fill="none" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round"/>
+  <circle cx="14" cy="42" r="3.6" fill="#FFFFFF"/>
+  <rect x="25" y="27" width="6.4" height="6.4" rx="1.4" fill="#D4B968"/>
+  <circle cx="42" cy="18" r="3.8" fill="#FFFFFF"/>
+  <rect x="49" y="23" width="6.4" height="6.4" rx="1.4" fill="#D4B968"/>
+</svg>

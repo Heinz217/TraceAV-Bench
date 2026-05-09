@@ -1,0 +1,159 @@
+{
+  "task_type": "a_background_music",
+  "video_count": 2,
+  "question_count": 2,
+  "items": [
+    {
+      "question_id": 1,
+      "video_id": "video1",
+      "question": "Across Joaquin Phoenix’s Oscar-night appearances connected to Joker, during which specific segment is his onstage moment actually underscored by the distinctly eerie orchestral Joker film score itself, rather than by more neutral, generic ceremony music?",
+      "options": {
+        "A": "When Joaquin Phoenix first walks out to accept his Actor in a Leading Role Oscar for Joker, as triumphant but stylistically neutral orchestral ceremony music swells beneath the standing ovation.",
+        "B": "When Joaquin Phoenix is deep into his Actor in a Leading Role acceptance speech about animal rights and personal change, accompanied only by faint, unobtrusive orchestral underscore from the ceremony.",
+        "C": "When the nominees for Actor in a Leading Role, including Joaquin Phoenix for Joker, are introduced over the montage and their names are read, with standard dramatic awards-show music playing in the background.",
+        "D": "When the eerie string-led Joker cue plays under the on-screen credit for Hildur Guðnadóttir’s Original Score for Joker, just before she accepts her Oscar while Phoenix is only associated with the film offstage."
+      },
+      "question_type": "single",
+      "correct_options": [
+        "D"
+      ],
+      "answer_text": "When the eerie string-led Joker cue plays under the on-screen credit for Hildur Guðnadóttir’s Original Score for Joker, just before she accepts her Oscar while Phoenix is only associated with the film offstage.",
+      "minute_hop_count": 11,
+      "hop_length_label": "long",
+      "trajectory_with_timestamps": [
+        {
+          "event_id": 28,
+          "evidence": "a dimly lit room where a man in a white shirt and dark jacket stands near a glowing blue screen, displaying the on-screen text 'JOKER' by Hildur Guðnadóttir, accompanied by orchestral music with an eerie string sound.",
+          "label": "audio",
+          "reason": "Identifying the distinctive eerie orchestral Joker score relies on the description of its sound, not visuals.",
+          "timestamp_minute": 67,
+          "event_time_range": {
+            "start_minute": 66,
+            "end_minute": 68
+          }
+        },
+        {
+          "event_id": 28,
+          "evidence": "Hildur Guðnadóttir, in a black gown with a sparkling silver sequined bodice, walked to the stage to accept her Oscar, thanking the Academy and fellow nominees… The stage backdrop featured a red and gold gradient, with the 'ORIGINAL SCORE' award for 'JOKER' identified on-screen.",
+          "label": "audio",
+          "reason": "We must link the eerie Joker score cue to Hildur’s Oscar for Original Score for Joker, which is established via the spoken/winner announcement context.",
+          "timestamp_minute": 67,
+          "event_time_range": {
+            "start_minute": 66,
+            "end_minute": 68
+          }
+        },
+        {
+          "event_id": 33,
+          "evidence": "Joaquin Phoenix… walks onto the stage amidst a standing ovation and celebratory music, beginning his acceptance speech for 'Actor in a Leading Role' for 'Joker.'",
+          "label": "audio",
+          "reason": "To contrast where Joker-linked appearances have only standard ceremony music, we need the audio description of the generic celebratory underscore as he comes onstage.",
+          "timestamp_minute": 77,
+          "event_time_range": {
+            "start_minute": 76,
+            "end_minute": 79
+          }
+        },
+        {
+          "event_id": 33,
+          "evidence": "a formally dressed audience… is seated in tiered rows, clapping warmly to the faint orchestral music. Joaquin Phoenix… walks onto the stage and stands at a microphone… He begins his acceptance speech for the Actor in a Leading Role award for 'Joker', speaking with intense emotion…",
+          "label": "audio",
+          "reason": "This establishes that Phoenix’s long acting speech is backed only by faint, neutral orchestral ceremony music, not the tense, eerie Joker film cue heard in the composer segment.",
+          "timestamp_minute": 78,
+          "event_time_range": {
+            "start_minute": 76,
+            "end_minute": 79
+          }
+        }
+      ],
+      "difficulty": "easy"
+    },
+    {
+      "question_id": 2,
+      "video_id": "video4",
+      "question": "Across the full broadcast, which specific type of segment is introduced with the uniquely high‑energy branded jingle that prominently features the word “SYNERGY” and sounds clearly different from both the main NEWS at 10 theme and the calmer business/news beds?",
+      "options": {
+        "A": "The ENTERTAINMENT NEWS section whose ident uses an orchestral Africa‑themed score followed by a separate electronic entertainment opener",
+        "B": "The BUSINESS NEWS block that hands back to the main news after market and oil production updates under a softer studio background bed",
+        "C": "The dedicated SPORTS NEWS segment that returns from an update and then cuts into a ‘SYNERGY’ animation before wider news on Aliko Dangote and diesel prices",
+        "D": "The opening NEWS at 10 headline sequence that debuts the main CHANNELS orchestral theme before Governor Sanwo‑Olu’s Lagos Island demolition story"
+      },
+      "question_type": "single",
+      "correct_options": [
+        "C"
+      ],
+      "answer_text": "The dedicated SPORTS NEWS segment that returns from an update and then cuts into a ‘SYNERGY’ animation before wider news on Aliko Dangote and diesel prices",
+      "minute_hop_count": 61,
+      "hop_length_label": "long",
+      "trajectory_with_timestamps": [
+        {
+          "event_id": 1,
+          "evidence": "accompanied by an upbeat, dramatic orchestral score.",
+          "label": "audio",
+          "reason": "Identifying the main NEWS at 10 theme as orchestral relies only on hearing its musical style.",
+          "timestamp_minute": 1,
+          "event_time_range": {
+            "start_minute": 1,
+            "end_minute": 1
+          }
+        },
+        {
+          "event_id": 2,
+          "evidence": "Over background music, the News Anchor's voice is heard discussing an \"unacceptable action\" in a \"business district area.\"",
+          "label": "audio",
+          "reason": "Shows the ongoing studio/news bed underlying the core NEWS at 10 segments, needed as a baseline to contrast with other jingles.",
+          "timestamp_minute": 2,
+          "event_time_range": {
+            "start_minute": 2,
+            "end_minute": 2
+          }
+        },
+        {
+          "event_id": 23,
+          "evidence": "a FirstBank Nigeria advertisement featured upbeat music and a male voiceover promoting \"Banking so easy, so simple. Dial star 894 hash now to experience it.\"",
+          "label": "audio",
+          "reason": "Establishes the sound of a standard commercial jingle, which must be distinguished from the uniquely branded high‑energy sting.",
+          "timestamp_minute": 51,
+          "event_time_range": {
+            "start_minute": 51,
+            "end_minute": 52
+          }
+        },
+        {
+          "event_id": 26,
+          "evidence": "A dynamic 3D animation with red and white geometric shapes and a red tennis ball plays, accompanied by upbeat, dynamic news transition music with electronic elements, leading to the 'SPORTS NEWS' logo.",
+          "label": "audio",
+          "reason": "Identifies the generic sports transition music so it can be contrasted with later, more specifically branded stings.",
+          "timestamp_minute": 56,
+          "event_time_range": {
+            "start_minute": 55,
+            "end_minute": 57
+          }
+        },
+        {
+          "event_id": 28,
+          "evidence": "a dynamic animated sequence featuring red and white geometric patterns, the word 'SYNERGY,' and the 'SPORTS NEWS' logo again, accompanied by an upbeat, energetic sports news jingle.",
+          "label": "audio",
+          "reason": "This is the distinctive, high‑energy branded sports sting whose identity must be recognized and differentiated from other themes and ads.",
+          "timestamp_minute": 59,
+          "event_time_range": {
+            "start_minute": 59,
+            "end_minute": 60
+          }
+        },
+        {
+          "event_id": 29,
+          "evidence": "The segment concludes with a dynamic 3D animated sequence, accompanied by upbeat, orchestral instrumental music with an African rhythm, showcasing the 'CHANNELS' logo... The segment commences with an upbeat, rhythmic electronic music track accompanying a dynamic 3D animated sequence... The music continues as the animation transitions to reveal bold 3D letters 'EN'... 'ENTERTAINMENT NEWS'.",
+          "label": "audio",
+          "reason": "Defines the separate orchestral and later electronic idents leading into Entertainment News, which must be distinguished from the 'SYNERGY' sports sting.",
+          "timestamp_minute": 62,
+          "event_time_range": {
+            "start_minute": 61,
+            "end_minute": 62
+          }
+        }
+      ],
+      "difficulty": "easy"
+    }
+  ]
+}
