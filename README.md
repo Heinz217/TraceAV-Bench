@@ -7,7 +7,7 @@
 
 [![Homepage](https://img.shields.io/badge/Homepage-TraceAV--Bench-1f6feb?style=flat-square&logo=github)](https://heinz217.github.io/TraceAV-Bench-Page/)
 [![HuggingFace Dataset](https://img.shields.io/badge/%F0%9F%A4%97%20Dataset-TraceAV--Bench-yellow?style=flat-square)](https://huggingface.co/datasets/Heinz217/TraceAV-Bench)
-[![arXiv](https://img.shields.io/badge/arXiv-coming%20soon-b31b1b?style=flat-square&logo=arxiv)](#)
+[![arXiv](https://img.shields.io/badge/arXiv-2605.07593-b31b1b?style=flat-square&logo=arxiv)](https://arxiv.org/abs/2605.07593)
 [![Paper](https://img.shields.io/badge/Paper-PDF-1f6feb?style=flat-square)](assets/TraceAV-Bench.pdf)
 [![License: CC BY 4.0](https://img.shields.io/badge/License-CC%20BY%204.0-lightgrey?style=flat-square)](https://creativecommons.org/licenses/by/4.0/)
 
@@ -23,7 +23,7 @@
 
 ## ✨ Highlights
 
-- **Ultra-long videos.** Each video runs from 606 s to 8,394 s with an average of ~35 min, making this the only benchmark whose mean video duration exceeds 30 minutes.
+- **Ultra-long videos.** Each video runs from 606 s to 8,394 s with an average of ~35 min.
 - **Explicit multi-hop trajectories.** Every question is grounded in a temporally dispersed, cross-modal evidence chain.
 - **4 dimensions × 15 sub-tasks.** Audio-Visual Joint Reasoning (7 sub-tasks), Visual-Centric Reasoning (2 sub-tasks), Audio-Centric Reasoning (3 sub-tasks), plus a dedicated Multimodal Hallucination dimension (3 sub-tasks).
 - **Hallucination test.** V2A deception, A2V deception, and temporal splicing fallacy.
@@ -58,10 +58,10 @@ The 15 sub-tasks span four dimensions, encoded as a prefix in every `task_type` 
 
 ```
 TraceAV-Bench/
-├── assets/             # Figures and the SVG logo
-├── data_examples/      # 4 small example files showing the exact JSON schema
-├── src/                # Benchmark construction pipeline (4 stages)
-└── eval/               # Per-model evaluators and launchers
+├── assets/             
+├── data_examples/      
+├── src/                
+└── eval/               
 ```
 
 > The full benchmark data is **not** stored in this repository. Download it from the
@@ -200,7 +200,7 @@ A three-step semi-automated pipeline followed by a strict quality assurance stag
 
 ## 🏆 Leaderboard
 
-A snapshot of the evaluation results on TraceAV-Bench is shown below. For the live, sortable leaderboard with per-task breakdowns and submission instructions, jump to the project page:
+A snapshot of the evaluation results on TraceAV-Bench is shown below. For the live, sortable leaderboard with per-task breakdowns, jump to the project page:
 
 <p align="center">
   <a href="https://heinz217.github.io/TraceAV-Bench-Page/#leaderboard">
@@ -234,3 +234,19 @@ The TraceAV-Bench annotations and accompanying code are released under the
 believe should not be referenced by TraceAV-Bench, please open an issue on this
 repository or contact us at **<hengyifeng.0118@gmail.com>**, and we will remove
 the corresponding entries promptly.
+
+## 📖 Citation
+
+If you find TraceAV-Bench useful for your research, please cite our paper:
+
+```bibtex
+@misc{feng2026traceavbenchbenchmarkingmultihoptrajectory,
+      title={TraceAV-Bench: Benchmarking Multi-Hop Trajectory Reasoning over Long Audio-Visual Videos},
+      author={Hengyi Feng and Hao Liang and Mingrui Chen and Bohan Zeng and Meiyi Qiang and Zhengyang Zhao and Zimo Meng and Zeang Sheng and Wentao Zhang},
+      year={2026},
+      eprint={2605.07593},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2605.07593},
+}
+```
