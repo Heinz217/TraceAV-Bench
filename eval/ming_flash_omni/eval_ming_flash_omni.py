@@ -33,6 +33,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common_av_input import fallback_profiles, is_capacity_error, model_input_profile, prepare_av_video, probe_media
+
 import torch
 from tqdm import tqdm
 from transformers import AutoProcessor
@@ -65,7 +68,7 @@ SETTINGS: Dict[str, Any] = {
     "max_file_mib":    5000,
     "num_layers":      32,
 
-    "max_video_frames": int(os.environ.get("MING_MAX_VIDEO_FRAMES", "64")),
+    "max_video_frames": int(os.environ.get("MING_MAX_VIDEO_FRAMES", "768")),
 }
 
 @dataclass
@@ -89,6 +92,7 @@ class EvaluationMetrics:
     minute_hop_count: Optional[int] = None
     hop_length_label: Optional[str] = None
     hop_evidence_span_minutes: Optional[float] = None
+    media_profile: Optional[Dict[str, Any]] = None
 
 def hop_metadata_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
     oids = item.get("original_event_ids")
@@ -271,46 +275,54 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
         processor  = cfg["processor"]
         model      = cfg["model"]
         max_tokens: int = cfg["max_tokens"]
+        max_video_frames: int = int(cfg["max_video_frames"])
 
-        messages = [{"role": "HUMAN", "content": [
-            {"type": "video", "video": str(path)},
-            {"type": "text",  "text": prompt},
-        ]}]
+        duration = float(probe_media(path)["duration_sec"])
+        generated_ids = None
+        media_profile = None
+        last_error = ""
+        for edge, frames, audio_budget in fallback_profiles(duration, max_video_frames):
+            try:
+                with prepare_av_video(
+                    path, frame_budget=frames, long_edge=edge,
+                    audio_budget_sec=audio_budget,
+                ) as (sampled_path, profile):
+                    messages = [{"role": "HUMAN", "content": [
+                        {"type": "video", "video": str(sampled_path), "max_frames": frames, "sample": "uniform"},
+                        {"type": "text", "text": prompt},
+                    ]}]
+                    text = processor.apply_chat_template(messages)
+                    image_inputs, video_inputs, audio_inputs = processor.process_vision_info(messages)
+                    inputs = processor(
+                        text=[text], images=image_inputs, videos=video_inputs,
+                        audios=audio_inputs, return_tensors="pt",
+                        audio_kwargs={"use_whisper_encoder": True},
+                    )
 
-        text = processor.apply_chat_template(messages)
-        image_inputs, video_inputs, audio_inputs = processor.process_vision_info(messages)
-
-        inputs = processor(
-            text=[text],
-            images=image_inputs,
-            videos=video_inputs,
-            audios=audio_inputs,
-            return_tensors="pt",
-            audio_kwargs={"use_whisper_encoder": True},
-        )
-
-        _dev = torch.device("cuda:0")
-        for k in list(inputs.keys()):
-            v = inputs[k]
-            if not isinstance(v, torch.Tensor):
-                continue
-            if k in ("pixel_values", "pixel_values_videos", "audio_feats"):
-                inputs[k] = v.to(device=_dev, dtype=torch.bfloat16)
-            else:
-                inputs[k] = v.to(device=_dev)
-
-        try:
-            with torch.no_grad():
-                generated_ids = model.generate(
-                    **inputs,
-                    max_new_tokens=max_tokens,
-                    use_cache=True,
-                    eos_token_id=processor.gen_terminator,
-                    num_logits_to_keep=1,
-                )
-        except torch.cuda.OutOfMemoryError as oom_e:
-            torch.cuda.empty_cache()
-            return _fail(f"CUDA OOM: {oom_e}")
+                    _dev = torch.device("cuda:0")
+                    for k in list(inputs.keys()):
+                        value = inputs[k]
+                        if not isinstance(value, torch.Tensor):
+                            continue
+                        if k in ("pixel_values", "pixel_values_videos", "audio_feats"):
+                            inputs[k] = value.to(device=_dev, dtype=torch.bfloat16)
+                        else:
+                            inputs[k] = value.to(device=_dev)
+                    with torch.no_grad():
+                        generated_ids = model.generate(
+                            **inputs, max_new_tokens=max_tokens, use_cache=True,
+                            eos_token_id=processor.gen_terminator, num_logits_to_keep=1,
+                        )
+                    media_profile = dict(profile)
+                    media_profile.update(model_input_profile(inputs.get("input_ids"), inputs))
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                if not is_capacity_error(0, last_error):
+                    raise
+                torch.cuda.empty_cache()
+        if generated_ids is None:
+            return _fail(last_error or "AV input fallback ladder exhausted")
 
         generated_ids_trimmed = [
             out_ids[len(in_ids):]
@@ -332,6 +344,7 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
             not bool(pred),
             raw_text, True, None,
             time.time() - t0, raw_text, str(path), None, **hop,
+            media_profile=media_profile,
         )
     except Exception:
         return _fail(traceback.format_exc())
@@ -345,7 +358,7 @@ def main() -> None:
     max_tokens        = int(s["max_tokens"])
     max_mib           = float(s["max_file_mib"])
     num_layers        = int(s["num_layers"])
-    max_video_frames  = int(s.get("max_video_frames", 64))
+    max_video_frames  = int(s.get("max_video_frames", 768))
 
     pool: List[Dict[str, Any]] = []
     for f in sorted(cleaned_dir.glob("*.json")):

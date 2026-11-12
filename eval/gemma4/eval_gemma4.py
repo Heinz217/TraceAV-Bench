@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -26,6 +27,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import av
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common_av_input import fallback_profiles, is_capacity_error, model_input_profile, prepare_av_video, probe_media
 
 import torch
 from tqdm import tqdm
@@ -54,7 +59,7 @@ SETTINGS: Dict[str, Any] = {
     "output_file":         f"{OUTPUT_DIR}/gemma4_results_{datetime.now().strftime('%m%d_%H%M')}.json",
     "max_tokens":          512,
     "load_audio_from_video": True,                 
-    "num_video_frames":    32,                   
+    "num_video_frames":    60,
     "max_file_mib":        5000,
 }
 
@@ -79,6 +84,7 @@ class EvaluationMetrics:
     minute_hop_count:        Optional[int]  = None
     hop_length_label:        Optional[str]  = None
     hop_evidence_span_minutes: Optional[float] = None
+    media_profile: Optional[Dict[str, Any]] = None
 
 def hop_metadata_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
     oids = item.get("original_event_ids")
@@ -154,6 +160,27 @@ def compute_summary(metrics: List[EvaluationMetrics], run_id: str) -> Dict[str, 
         "by_task_type":      by_task,
     }
 
+def extract_audio_16khz(video_path: str) -> Optional[np.ndarray]:
+    """Decode and resample the complete embedded audio track to mono 16 kHz."""
+    chunks: List[np.ndarray] = []
+    with av.open(video_path) as container:
+        if not any(s.type == "audio" for s in container.streams):
+            return None
+        resampler = av.AudioResampler(format="fltp", layout="mono", rate=16000)
+        for frame in container.decode(audio=0):
+            converted = resampler.resample(frame)
+            if converted is None:
+                continue
+            if not isinstance(converted, list):
+                converted = [converted]
+            chunks.extend(f.to_ndarray().reshape(-1) for f in converted)
+        flushed = resampler.resample(None)
+        if flushed is not None:
+            if not isinstance(flushed, list):
+                flushed = [flushed]
+            chunks.extend(f.to_ndarray().reshape(-1) for f in flushed)
+    return np.concatenate(chunks).astype(np.float32, copy=False) if chunks else None
+
 def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics:
     t0  = time.time()
     hop = hop_metadata_from_item(item)
@@ -204,68 +231,66 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
         max_tokens   = cfg["max_tokens"]
         num_frames   = cfg["num_frames"]
 
-        frames: List[Any] = []
-        with av.open(str(path)) as container:
-            video_stream = next(
-                (s for s in container.streams if s.type == "video"), None
-            )
-            if video_stream is None:
-                return _fail("No video stream found")
+        duration = float(probe_media(path)["duration_sec"])
+        raw_text = None
+        media_profile = None
+        last_error = ""
+        for edge, frame_count, audio_budget in fallback_profiles(duration, num_frames):
+            try:
+                with prepare_av_video(
+                    path, frame_budget=frame_count, long_edge=edge,
+                    audio_budget_sec=audio_budget,
+                ) as (sampled_path, profile):
+                    frames: List[Any] = []
+                    with av.open(str(sampled_path)) as container:
+                        video_stream = next((s for s in container.streams if s.type == "video"), None)
+                        if video_stream is None:
+                            raise RuntimeError("No video stream found after AV preprocessing")
+                        total = video_stream.frames or 0
+                        indices = set(
+                            int(round(i * (total - 1) / (frame_count - 1)))
+                            for i in range(frame_count)
+                        ) if total > 0 and frame_count > 1 else ({0} if total > 0 else None)
+                        frame_idx = 0
+                        for frame in container.decode(video=0):
+                            if indices is None or frame_idx in indices:
+                                frames.append(frame.to_ndarray(format="rgb24"))
+                            frame_idx += 1
+                            if len(frames) >= frame_count:
+                                break
+                    if not frames:
+                        raise RuntimeError("No frames decoded from video")
 
-            total = video_stream.frames or 0
-
-            if total > 0:
-                indices = set(
-                    int(round(i * (total - 1) / (num_frames - 1)))
-                    for i in range(num_frames)
-                ) if num_frames > 1 else {0}
-            else:
-                indices = None                     
-
-            frame_idx = 0
-            for frame in container.decode(video=0):
-                if indices is None:
-                    frames.append(frame.to_ndarray(format="rgb24"))
-                    if len(frames) >= num_frames:
-                        break
-                else:
-                    if frame_idx in indices:
-                        frames.append(frame.to_ndarray(format="rgb24"))
-                    frame_idx += 1
-                    if len(frames) >= num_frames:
-                        break
-
-        if not frames:
-            return _fail("No frames decoded from video")
-
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "video", "video": frames},
-                    {"type": "text",  "text":  prompt},
-                ],
-            }
-        ]
-
-        inputs = processor.apply_chat_template(
-            messages,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-            add_generation_prompt=True,
-        ).to(device)
-
-        with torch.inference_mode():
-            output_ids = model.generate(
-                **inputs,
-                max_new_tokens=max_tokens,
-                do_sample=False,
-            )
-
-        input_len = inputs["input_ids"].shape[-1]
-        generated  = output_ids[0][input_len:]
-        raw_text   = processor.decode(generated, skip_special_tokens=True).strip()
+                    content: List[Dict[str, Any]] = [{"type": "video", "video": frames}]
+                    if cfg.get("load_audio_from_video", True):
+                        audio = extract_audio_16khz(str(sampled_path))
+                        if audio is None or audio.size == 0:
+                            raise RuntimeError("No audio track decoded from video")
+                        content.append({"type": "audio", "audio": audio, "sampling_rate": 16000})
+                    content.append({"type": "text", "text": prompt})
+                    inputs = processor.apply_chat_template(
+                        [{"role": "user", "content": content}],
+                        tokenize=True, return_dict=True, return_tensors="pt",
+                        add_generation_prompt=True,
+                    ).to(device)
+                    with torch.inference_mode():
+                        output_ids = model.generate(
+                            **inputs, max_new_tokens=max_tokens, do_sample=False,
+                        )
+                    input_len = inputs["input_ids"].shape[-1]
+                    generated = output_ids[0][input_len:]
+                    raw_text = processor.decode(generated, skip_special_tokens=True).strip()
+                    media_profile = dict(profile)
+                    media_profile.update(model_input_profile(inputs.get("input_ids"), inputs))
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                if not is_capacity_error(0, last_error):
+                    raise
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+        if raw_text is None:
+            return _fail(last_error or "AV input fallback ladder exhausted")
         pred       = parse_response_to_prediction(raw_text)
 
         return EvaluationMetrics(
@@ -276,6 +301,7 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
             not bool(pred),
             raw_text, True, None,
             time.time() - t0, raw_text, str(path), None, **hop,
+            media_profile=media_profile,
         )
     except Exception:
         return _fail(traceback.format_exc())
@@ -345,7 +371,7 @@ def main() -> None:
         local_files_only=True,
     )
 
-    num_frames = int(s.get("num_video_frames", 32))
+    num_frames = int(s.get("num_video_frames", 60))
 
     cfg = {
         "videos_dir":          videos_dir,

@@ -34,6 +34,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common_av_input import fallback_profiles, is_capacity_error, model_input_profile, prepare_av_video, probe_media
+
 import torch
 
 from tqdm import tqdm
@@ -93,6 +96,7 @@ class EvaluationMetrics:
     minute_hop_count: Optional[int] = None
     hop_length_label: Optional[str] = None
     hop_evidence_span_minutes: Optional[float] = None
+    media_profile: Optional[Dict[str, Any]] = None
 
 def hop_metadata_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
     oids = item.get("original_event_ids")
@@ -218,57 +222,65 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
         tokenizer    = cfg["tokenizer"]
         max_new_tokens = cfg["max_tokens"]
 
-        source = {
-            "video": str(path),
-            "use_audio": True,                  
-            "conversations": [
-                {"from": "human", "value": f"<video>\n{prompt}"},
-                {"from": "gpt",   "value": ""},
-            ],
-        }
-        inputs = dataset._get_item(source)
-
-        for drop_key in ("video", "image", "prompt", "ref", "audio", "use_audio", "should_use", "labels"):
-            inputs.pop(drop_key, None)
-
-        _device = torch.device("cuda:0")
-
-        processed = {}
-        for k, v in inputs.items():
-            if not isinstance(v, torch.Tensor):
-                processed[k] = v
-                continue
-            if v.dim() <= 1 and k in ("input_ids", "attention_mask", "token_type_ids", "position_ids"):
-                processed[k] = v.reshape(1, -1).to(device=_device)
-            elif k in ("pixel_values_videos", "pixel_values"):
-                processed[k] = v.to(device=_device, dtype=torch.bfloat16)
-            elif k in ("video_grid_thw", "image_grid_thw"):
-                processed[k] = v.to(device=_device, dtype=torch.long)
-            elif v.is_floating_point():
-                processed[k] = v.to(device=_device, dtype=torch.bfloat16)
-            else:
-                processed[k] = v.to(device=_device)
-        inputs = processed
-
-        if "attention_mask" in inputs and isinstance(inputs["attention_mask"], list):
-            inputs["attention_mask"] = torch.ones(
-                inputs["input_ids"].shape, dtype=torch.long, device=_device
-            )
-        if "attention_mask" not in inputs and "input_ids" in inputs:
-            inputs["attention_mask"] = torch.ones(
-                inputs["input_ids"].shape, dtype=torch.long, device=_device
-            )
-
-        with torch.inference_mode():
-            output_ids = model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=False,
-            )
-
-        input_len = inputs["input_ids"].shape[1]
-        new_ids = output_ids[:, input_len:]
-        raw_text = tokenizer.decode(new_ids[0], skip_special_tokens=True).strip()
+        duration = float(probe_media(path)["duration_sec"])
+        raw_text = None
+        media_profile = None
+        last_error = ""
+        data_args = cfg["data_args"]
+        for edge, frames, audio_budget in fallback_profiles(duration, cfg["max_frames"]):
+            try:
+                with prepare_av_video(
+                    path, frame_budget=frames, long_edge=edge,
+                    audio_budget_sec=audio_budget,
+                ) as (sampled_path, profile):
+                    data_args.video_max_frames = frames
+                    data_args.max_pixels = edge * edge
+                    data_args.video_max_frame_pixels = edge * edge
+                    source = {
+                        "video": str(sampled_path), "use_audio": True,
+                        "conversations": [
+                            {"from": "human", "value": f"<video>\n{prompt}"},
+                            {"from": "gpt", "value": ""},
+                        ],
+                    }
+                    inputs = dataset._get_item(source)
+                    for drop_key in ("video", "image", "prompt", "ref", "audio", "use_audio", "should_use", "labels"):
+                        inputs.pop(drop_key, None)
+                    _device = torch.device("cuda:0")
+                    processed = {}
+                    for k, value in inputs.items():
+                        if not isinstance(value, torch.Tensor):
+                            processed[k] = value
+                        elif value.dim() <= 1 and k in ("input_ids", "attention_mask", "token_type_ids", "position_ids"):
+                            processed[k] = value.reshape(1, -1).to(device=_device)
+                        elif k in ("pixel_values_videos", "pixel_values"):
+                            processed[k] = value.to(device=_device, dtype=torch.bfloat16)
+                        elif k in ("video_grid_thw", "image_grid_thw"):
+                            processed[k] = value.to(device=_device, dtype=torch.long)
+                        elif value.is_floating_point():
+                            processed[k] = value.to(device=_device, dtype=torch.bfloat16)
+                        else:
+                            processed[k] = value.to(device=_device)
+                    inputs = processed
+                    if "attention_mask" in inputs and isinstance(inputs["attention_mask"], list):
+                        inputs["attention_mask"] = torch.ones(inputs["input_ids"].shape, dtype=torch.long, device=_device)
+                    if "attention_mask" not in inputs and "input_ids" in inputs:
+                        inputs["attention_mask"] = torch.ones(inputs["input_ids"].shape, dtype=torch.long, device=_device)
+                    with torch.inference_mode():
+                        output_ids = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+                    input_len = inputs["input_ids"].shape[1]
+                    new_ids = output_ids[:, input_len:]
+                    raw_text = tokenizer.decode(new_ids[0], skip_special_tokens=True).strip()
+                    media_profile = dict(profile)
+                    media_profile.update(model_input_profile(inputs.get("input_ids"), inputs))
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                if not is_capacity_error(0, last_error):
+                    raise
+                torch.cuda.empty_cache()
+        if raw_text is None:
+            return _fail(last_error or "AV input fallback ladder exhausted")
 
         pred = parse_response_to_prediction(raw_text)
 
@@ -280,6 +292,7 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
             not bool(pred),
             raw_text, True, None,
             time.time() - t0, raw_text, str(path), None, **hop,
+            media_profile=media_profile,
         )
 
     except Exception:
@@ -404,6 +417,7 @@ def main() -> None:
         "model":       model,
         "tokenizer":   tokenizer,
         "dataset":     dataset,
+        "data_args":   data_args,
     }
 
     save_json(config_path, {

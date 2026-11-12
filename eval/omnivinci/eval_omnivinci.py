@@ -17,12 +17,16 @@ os.environ["LD_PRELOAD"] = ""
 
 import json
 import re
+import sys
 import time
 import traceback
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common_av_input import fallback_profiles, is_capacity_error, model_input_profile, prepare_av_video, probe_media
 
 import torch
 
@@ -95,6 +99,7 @@ class EvaluationMetrics:
     minute_hop_count: Optional[int] = None
     hop_length_label: Optional[str] = None
     hop_evidence_span_minutes: Optional[float] = None
+    media_profile: Optional[Dict[str, Any]] = None
 
 def hop_metadata_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
     oids = item.get("original_event_ids")
@@ -227,27 +232,51 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
         model     = cfg["model"]
         generation_config = cfg["generation_config"]
 
-        conversation = [{
-            "role": "user",
-            "content": [
-                {"type": "video", "video": str(path)},
-                {"type": "text",  "text": prompt},
-            ],
-        }]
-
-        text   = processor.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True)
-        inputs = processor([text])
-        inputs = inputs.to("cuda")
-        if getattr(inputs, "media", None) is not None:
-            inputs.media = _cuda_tensors(inputs.media)
-
-        with torch.inference_mode():
-            output_ids = model.generate(
-                input_ids=inputs.input_ids,
-                media=getattr(inputs, "media", None),
-                media_config=getattr(inputs, "media_config", None),
-                generation_config=generation_config,
-            )
+        duration = float(probe_media(path)["duration_sec"])
+        output_ids = None
+        media_profile = None
+        last_error = ""
+        for edge, frames, audio_budget in fallback_profiles(duration, 128, audio_cap_sec=3600):
+            try:
+                with prepare_av_video(
+                    path, frame_budget=frames, long_edge=edge,
+                    audio_budget_sec=audio_budget,
+                ) as (sampled_path, profile):
+                    model.config.num_video_frames = frames
+                    processor.config.num_video_frames = frames
+                    model.config.audio_chunk_length = "max_3600"
+                    processor.config.audio_chunk_length = "max_3600"
+                    conversation = [{
+                        "role": "user",
+                        "content": [
+                            {"type": "video", "video": str(sampled_path)},
+                            {"type": "text", "text": prompt},
+                        ],
+                    }]
+                    text = processor.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True)
+                    inputs = processor([text]).to("cuda")
+                    if getattr(inputs, "media", None) is not None:
+                        inputs.media = _cuda_tensors(inputs.media)
+                    with torch.inference_mode():
+                        output_ids = model.generate(
+                            input_ids=inputs.input_ids,
+                            media=getattr(inputs, "media", None),
+                            media_config=getattr(inputs, "media_config", None),
+                            generation_config=generation_config,
+                        )
+                    media_profile = dict(profile)
+                    media_profile.update(model_input_profile(
+                        getattr(inputs, "input_ids", None),
+                        getattr(inputs, "media", None),
+                    ))
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                if not is_capacity_error(0, last_error):
+                    raise
+                torch.cuda.empty_cache()
+        if output_ids is None:
+            return _fail(last_error or "AV input fallback ladder exhausted")
 
         raw_text = processor.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
         pred = parse_response_to_prediction(raw_text)
@@ -260,6 +289,7 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
             not bool(pred),
             raw_text, True, None,
             time.time() - t0, raw_text, str(path), None, **hop,
+            media_profile=media_profile,
         )
     except Exception:
         return _fail(traceback.format_exc())
@@ -320,7 +350,7 @@ def main() -> None:
     )
 
     load_audio_in_video = bool(s.get("load_audio_in_video", True))
-    num_video_frames    = int(s.get("num_video_frames", 64))
+    num_video_frames    = int(s.get("num_video_frames", 128))
     audio_length        = s.get("audio_chunk_length", "max_3600")
 
     model.config.load_audio_in_video = load_audio_in_video

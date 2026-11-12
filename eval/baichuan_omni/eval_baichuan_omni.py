@@ -13,6 +13,7 @@ os.environ["LD_PRELOAD"] = ""
 
 import json
 import re
+import sys
 import time
 
 import traceback
@@ -24,6 +25,9 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common_av_input import fallback_profiles, is_capacity_error, model_input_profile, prepare_av_video, probe_media
 
 import torch
 
@@ -83,6 +87,7 @@ class EvaluationMetrics:
     minute_hop_count: Optional[int] = None
     hop_length_label: Optional[str] = None
     hop_evidence_span_minutes: Optional[float] = None
+    media_profile: Optional[Dict[str, Any]] = None
 
 def hop_metadata_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
     oids = item.get("original_event_ids")
@@ -206,54 +211,80 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
         tokenizer = cfg["tokenizer"]
         max_new_tokens = cfg["max_tokens"]
 
-        video_token_start = tokenizer.convert_ids_to_tokens(
-            model.config.video_config.video_start_token_id
-        )
-        video_token_end = tokenizer.convert_ids_to_tokens(
-            model.config.video_config.video_end_token_id
-        )
-        video_tag = (
-            video_token_start
-            + ujson.dumps({"local": str(path)}, ensure_ascii=False)
-            + video_token_end
-        )
-
-        system_content = "You are a helpful assistant."
-        content = f"<|im_start|>system\n{system_content}<|im_end|>\n"
-        content += f"<|im_start|>user\n{video_tag}{question_text}<|im_end|>\n"
-        content += "<|im_start|>assistant\n"
-
-        pret = model.processor([content])
-
-        first_device = next(model.parameters()).device
-        videos = (
-            [torch.tensor(v, dtype=torch.float32).to(first_device) for v in pret.videos]
-            if pret.videos is not None else None
-        )
-
-        try:
-            with torch.inference_mode():
-                output_ids = model.generate(
-                    input_ids=pret.input_ids.to(first_device),
-                    attention_mask=pret.attention_mask.to(first_device) if pret.attention_mask is not None else None,
-                    videos=videos,
-                    videos_patch_nums=pret.videos_patch_nums if pret.videos_patch_nums is not None else None,
-                    videos_grid=pret.videos_grid if pret.videos_grid is not None else None,
-                    images=None,
-                    audios=None,
-                    encoder_length=pret.encoder_length.to(first_device) if pret.encoder_length is not None else None,
-                    bridge_length=pret.bridge_length.to(first_device) if pret.bridge_length is not None else None,
-                    max_new_tokens=max_new_tokens,
-                    do_sample=False,
-                    use_cache=True,
-                    return_dict_in_generate=False,
-                )
-        except (torch.cuda.OutOfMemoryError, RuntimeError) as oom_err:
-            err_str = str(oom_err)
-            if "out of memory" in err_str.lower() or isinstance(oom_err, torch.cuda.OutOfMemoryError):
+        duration = float(probe_media(path)["duration_sec"])
+        output_ids = None
+        media_profile = None
+        last_error = ""
+        for edge, frames, audio_budget in fallback_profiles(duration, cfg["max_frames"]):
+            try:
+                with prepare_av_video(
+                    path, frame_budget=frames, long_edge=edge,
+                    audio_budget_sec=audio_budget,
+                ) as (sampled_path, profile):
+                    video_cfg = model.config.video_config
+                    video_cfg.max_frame_num = frames
+                    video_cfg.max_pixels = edge * edge
+                    proc_video_cfg = getattr(getattr(model.processor, "config", None), "video_config", None)
+                    if proc_video_cfg is not None:
+                        proc_video_cfg.max_frame_num = frames
+                        proc_video_cfg.max_pixels = edge * edge
+                    video_token_start = tokenizer.convert_ids_to_tokens(video_cfg.video_start_token_id)
+                    video_token_end = tokenizer.convert_ids_to_tokens(video_cfg.video_end_token_id)
+                    video_tag = (
+                        video_token_start
+                        + ujson.dumps({"local": str(sampled_path)}, ensure_ascii=False)
+                        + video_token_end
+                    )
+                    audio_tag = (
+                        model.processor.audio_start_tag
+                        + ujson.dumps({"path": str(sampled_path)}, ensure_ascii=False)
+                        + model.processor.audio_end_tag
+                    )
+                    content = f"<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n"
+                    content += f"<|im_start|>user\n{video_tag}{audio_tag}{question_text}<|im_end|>\n"
+                    content += "<|im_start|>assistant\n"
+                    pret = model.processor([content])
+                    first_device = next(model.parameters()).device
+                    videos = (
+                        [torch.tensor(v, dtype=torch.float32).to(first_device) for v in pret.videos]
+                        if pret.videos is not None else None
+                    )
+                    audios = getattr(pret, "audios", None)
+                    if audios is None or pret.encoder_length is None or pret.bridge_length is None:
+                        return _fail(
+                            "Baichuan processor produced no audio input for this video; "
+                            "refusing to evaluate it as video-only.", status=0
+                        )
+                    with torch.inference_mode():
+                        output_ids = model.generate(
+                            input_ids=pret.input_ids.to(first_device),
+                            attention_mask=pret.attention_mask.to(first_device) if pret.attention_mask is not None else None,
+                            videos=videos,
+                            videos_patch_nums=pret.videos_patch_nums if pret.videos_patch_nums is not None else None,
+                            videos_grid=pret.videos_grid if pret.videos_grid is not None else None,
+                            images=None,
+                            audios=audios,
+                            encoder_length=pret.encoder_length.to(first_device),
+                            bridge_length=pret.bridge_length.to(first_device),
+                            max_new_tokens=max_new_tokens,
+                            do_sample=False,
+                            use_cache=True,
+                            return_dict_in_generate=False,
+                        )
+                    media_profile = dict(profile)
+                    media_profile.update(model_input_profile(
+                        pret.input_ids,
+                        {"videos": pret.videos, "audios": audios,
+                         "encoder_length": pret.encoder_length, "bridge_length": pret.bridge_length},
+                    ))
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                if not is_capacity_error(0, last_error):
+                    raise
                 torch.cuda.empty_cache()
-                return _fail(f"CUDA OOM: {oom_err}", status=0)
-            raise
+        if output_ids is None:
+            return _fail(last_error or "AV input fallback ladder exhausted", status=0)
 
         prompt_len = pret.input_ids.shape[1]
         new_token_ids = output_ids[0, prompt_len:]
@@ -277,6 +308,7 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
             not bool(pred),
             raw_text, True, None,
             time.time() - t0, raw_text, str(path), None, **hop,
+            media_profile=media_profile,
         )
 
     except Exception:

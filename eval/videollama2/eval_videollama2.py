@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -26,6 +27,9 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common_av_input import fallback_profiles, is_capacity_error, model_input_profile, prepare_av_video, probe_media
 
 import torch
 
@@ -81,6 +85,7 @@ class EvaluationMetrics:
     minute_hop_count:          Optional[int]   = None
     hop_length_label:          Optional[str]   = None
     hop_evidence_span_minutes: Optional[float] = None
+    media_profile: Optional[Dict[str, Any]] = None
 
 def hop_metadata_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
     oids = item.get("original_event_ids")
@@ -204,28 +209,39 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
         modal          = cfg["modal"]                   
         max_new_tokens = cfg["max_tokens"]
 
-        video_path_str = str(path)
-
         preprocess = processor["video"]
-        try:
-            if modal == "av":
-                tensor = preprocess(video_path_str, va=True)
-            else:
-                tensor = preprocess(video_path_str, va=False)
-        except Exception:
-
-            modal = "v"
-            tensor = preprocess(video_path_str, va=False)
-
-        raw_text = mm_infer(
-            tensor,
-            instruct,
-            model=model,
-            tokenizer=tokenizer,
-            modal="video",                                    
-            do_sample=False,
-            max_new_tokens=max_new_tokens,
-        )
+        # AV failures retry with smaller synchronized inputs; never switch to V-only.
+        duration = float(probe_media(path)["duration_sec"])
+        raw_text = None
+        media_profile = None
+        last_error = ""
+        for edge, frames, audio_budget in fallback_profiles(duration, 16):
+            try:
+                with prepare_av_video(
+                    path, frame_budget=frames, long_edge=edge,
+                    audio_budget_sec=audio_budget,
+                ) as (sampled_path, profile):
+                    tensor = preprocess(str(sampled_path), va=(modal == "av"))
+                    raw_text = mm_infer(
+                        tensor,
+                        instruct,
+                        model=model,
+                        tokenizer=tokenizer,
+                        modal="video",
+                        do_sample=False,
+                        max_new_tokens=max_new_tokens,
+                    )
+                    media_profile = dict(profile)
+                    media_profile.update(model_input_profile(tensors=tensor))
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                if not is_capacity_error(0, last_error):
+                    raise
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+        if raw_text is None:
+            return _fail(last_error or "AV input fallback ladder exhausted")
 
         pred = parse_response_to_prediction(raw_text)
 
@@ -236,7 +252,8 @@ def evaluate_one(item: Dict[str, Any], cfg: Dict[str, Any]) -> EvaluationMetrics
             (pred == gold and len(gold) > 0),
             not bool(pred),
             raw_text, True, None,
-            time.time() - t0, raw_text, video_path_str, None, **hop,
+            time.time() - t0, raw_text, str(path), None, **hop,
+            media_profile=media_profile,
         )
 
     except Exception:

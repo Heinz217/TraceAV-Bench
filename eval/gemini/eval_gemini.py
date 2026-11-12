@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -21,6 +22,9 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
 from tqdm import tqdm
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common_av_input import timeline_coverage_profile
 
 GOOGLE_API_BASE = "https://generativelanguage.googleapis.com"
 VIDEO_EXTENSIONS = frozenset({".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v"})
@@ -139,6 +143,7 @@ class EvaluationMetrics:
     processing_time_sec: float = 0.0
     raw_model_text: Optional[str] = None
     local_video_path: Optional[str] = None
+    media_profile: Optional[Dict[str, Any]] = None
 
 def compute_summary(metrics: List[EvaluationMetrics], run_id: str) -> Dict[str, Any]:
     if not metrics:
@@ -183,8 +188,37 @@ def _run_ffmpeg(argv: List[str], *, timeout_sec: int) -> None:
         err = (proc.stderr or proc.stdout or "").strip()
         raise RuntimeError(f"ffmpeg exit {proc.returncode}: {err[:2000]}")
 
+def _probe_duration_sec(video_path: Path, timeout_sec: int) -> float:
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        raise RuntimeError("ffprobe not found in PATH (needed for uniform sampling)")
+    proc = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(video_path)],
+        capture_output=True, text=True, timeout=timeout_sec,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffprobe failed: {(proc.stderr or '').strip()[:1000]}")
+    duration = float(proc.stdout.strip())
+    if duration <= 0:
+        raise RuntimeError(f"Invalid video duration: {duration}")
+    return duration
+
 def _inline_part(raw: bytes, mime: str) -> Dict[str, Any]:
     return {"inlineData": {"mimeType": mime, "data": base64.standard_b64encode(raw).decode("ascii")}}
+
+def _even_audio_windows(duration: float, budget_sec: int, max_windows: int = 0) -> List[Tuple[float, float]]:
+    count = max(1, budget_sec // 30)
+    if max_windows > 0:
+        count = min(count, max_windows)
+    if count * 30 >= duration:
+        return [(0.0, duration)]
+    max_start = max(0.0, duration - 30.0)
+    starts = [
+        round(i * max_start / max(1, count - 1), 3)
+        for i in range(count)
+    ] if count > 1 else [max_start / 2]
+    return [(start, min(30.0, duration - start)) for start in starts]
 
 def build_media_parts(
     video_path: Path,
@@ -196,49 +230,76 @@ def build_media_parts(
     include_audio: bool,
     jpeg_q: int,
     audio_bitrate_kbps: int,
+    audio_budget_sec: int = 0,
 ) -> List[Dict[str, Any]]:
     ff = _ffmpeg_bin()
     parts: List[Dict[str, Any]] = []
-    vf = (
-        f"fps={fps},"
-        f"scale=w=min({long_edge}\\,iw):h=min({long_edge}\\,ih):force_original_aspect_ratio=decrease"
+    duration = _probe_duration_sec(video_path, ffmpeg_timeout_sec)
+    windows = (
+        _even_audio_windows(duration, audio_budget_sec, max_frames)
+        if include_audio and audio_budget_sec > 0 else [(0.0, duration)]
     )
+    frame_budget = max_frames if max_frames > 0 else max(1, int(duration * fps + 0.5))
+    per_window_base, per_window_extra = divmod(frame_budget, len(windows))
     with tempfile.TemporaryDirectory(prefix="lvbench_inline_") as tdir:
         wd = Path(tdir)
-        _run_ffmpeg(
-            [
-                ff, "-hide_banner", "-loglevel", "error", "-y",
-                "-i", str(video_path),
-                "-vf", vf,
-                "-q:v", str(jpeg_q),
-                str(wd / "frame_%06d.jpg"),
-            ],
-            timeout_sec=ffmpeg_timeout_sec,
-        )
-        frames = sorted(wd.glob("frame_*.jpg"))
-        if max_frames > 0:
-            frames = frames[:max_frames]
-        for fp in frames:
-            parts.append(_inline_part(fp.read_bytes(), "image/jpeg"))
+        for window_index, (start, length) in enumerate(windows):
+            count = per_window_base + (1 if window_index < per_window_extra else 0)
+            count = max(1, count)
+            sample_fps = min(fps, count / max(length, 0.001))
+            vf = (
+                f"fps={sample_fps:.10f},"
+                f"scale=w=min({long_edge}\\,iw):h=min({long_edge}\\,ih):force_original_aspect_ratio=decrease"
+            )
+            if audio_budget_sec > 0:
+                parts.append({"text": f"Video frames from original time window {start:.1f}s–{start + length:.1f}s."})
+            window_dir = wd / f"video_{window_index:04d}"
+            window_dir.mkdir()
+            _run_ffmpeg(
+                [
+                    ff, "-hide_banner", "-loglevel", "error", "-y",
+                    "-ss", f"{start:.3f}", "-i", str(video_path),
+                    "-t", f"{length:.3f}", "-vf", vf,
+                    "-frames:v", str(count), "-q:v", str(jpeg_q),
+                    str(window_dir / "frame_%06d.jpg"),
+                ],
+                timeout_sec=ffmpeg_timeout_sec,
+            )
+            for fp in sorted(window_dir.glob("frame_*.jpg")):
+                parts.append(_inline_part(fp.read_bytes(), "image/jpeg"))
 
         if include_audio:
-            audio_path = wd / "audio.m4a"
-            try:
-                _run_ffmpeg(
-                    [
-                        ff, "-hide_banner", "-loglevel", "error", "-y",
-                        "-i", str(video_path),
-                        "-vn",
-                        "-c:a", "aac",
-                        "-b:a", f"{audio_bitrate_kbps}k",
-                        str(audio_path),
-                    ],
-                    timeout_sec=ffmpeg_timeout_sec,
+            # Full audio is always the first attempt. On later attempts, encode
+            # fixed 30-second windows distributed evenly over the source timeline.
+            if audio_budget_sec <= 0:
+                audio_windows = [(0.0, duration)]
+            else:
+                audio_windows = windows
+            audio_parts_added = 0
+            for window_index, (start, length) in enumerate(audio_windows, start=1):
+                audio_path = wd / f"audio_{window_index:04d}.m4a"
+                try:
+                    _run_ffmpeg(
+                        [
+                            ff, "-hide_banner", "-loglevel", "error", "-y",
+                            "-ss", f"{start:.3f}", "-i", str(video_path),
+                            "-t", f"{length:.3f}", "-vn", "-c:a", "aac",
+                            "-b:a", f"{audio_bitrate_kbps}k", str(audio_path),
+                        ],
+                        timeout_sec=ffmpeg_timeout_sec,
+                    )
+                except RuntimeError:
+                    audio_path.unlink(missing_ok=True)
+                    raise
+                if audio_path.exists() and audio_path.stat().st_size >= 256:
+                    if audio_budget_sec > 0:
+                        parts.append({"text": f"Audio window {start:.1f}s–{start + length:.1f}s of the original video."})
+                    parts.append(_inline_part(audio_path.read_bytes(), "audio/mp4"))
+                    audio_parts_added += 1
+            if audio_parts_added != len(audio_windows):
+                raise RuntimeError(
+                    f"Only {audio_parts_added}/{len(audio_windows)} audio windows were extracted"
                 )
-            except RuntimeError:
-                audio_path.unlink(missing_ok=True)
-            if audio_path.exists() and audio_path.stat().st_size >= 256:
-                parts.append(_inline_part(audio_path.read_bytes(), "audio/mp4"))
 
     return parts
 
@@ -339,40 +400,130 @@ def evaluate_one(
     if path.suffix.lower() not in VIDEO_EXTENSIONS:
         return _fail(f"unsupported media type: {path.suffix}")
 
-    try:
-        media_parts = build_media_parts(
-            path,
-            long_edge=media_long_edge,
-            fps=media_fps,
-            max_frames=max_inline_frames,
-            ffmpeg_timeout_sec=ffmpeg_timeout_sec,
-            include_audio=include_audio,
-            jpeg_q=jpeg_q,
-            audio_bitrate_kbps=audio_bitrate_kbps,
-        )
-    except Exception as e:
-        return _fail(f"ffmpeg: {e}")
-
-    if not media_parts:
-        return _fail("no media parts produced")
-
     prompt = build_user_prompt(question, {str(k): str(v) for k, v in options.items()})
-    payload = build_payload(
-        media_parts,
-        prompt,
-        temperature=temperature,
-        max_output_tokens=max_output_tokens,
-        thinking_budget=thinking_budget,
-    )
+    duration: Optional[float] = None
     try:
-        resp = call_generate(
-            generate_url=generate_url,
-            api_key=api_key,
-            payload=payload,
-            timeout_sec=generate_timeout_sec,
-        )
+        duration = _probe_duration_sec(path, ffmpeg_timeout_sec)
     except Exception as e:
-        return _fail(str(e))
+        return _fail(f"ffprobe: {e}")
+    initial_frames = max_inline_frames or max(1, int(duration * media_fps + 0.5))
+    frame_counts: List[int] = [max_inline_frames]
+    n = initial_frames
+    while n > 1:
+        n = n // 2
+        if n not in frame_counts:
+            frame_counts.append(n)
+    audio_budgets = [0]
+    if include_audio:
+        budget = int(duration) // 2
+        budget = (budget // 30) * 30
+        while budget >= 30:
+            audio_budgets.append(budget)
+            budget = ((budget // 2) // 30) * 30
+
+    retryable_text = ("413", "too large", "exceeds the maximum", "context length",
+                      "input is too long", "too many tokens", "resource exhausted")
+    resp = None
+    last_error = ""
+    selected_profile: Optional[Dict[str, Any]] = None
+    # Retry through resolution stages first; then reduce the frame count; only
+    # after video reductions are exhausted do we reduce audio in half-budget steps.
+    attempts: List[Tuple[int, ...]] = []
+    for edge in [1280, 960, 640, 480]:
+        attempts.append((edge, max_inline_frames))
+    for cap in frame_counts[1:]:
+        attempts.append((480, cap))
+    seen_audio_budgets: Set[int] = set()
+    for budget in audio_budgets[1:]:
+        synchronized_cap = frame_counts[-1]
+        selected = _even_audio_windows(duration, budget, synchronized_cap)
+        signature = hash(tuple((round(start, 3), round(length, 3)) for start, length in selected))
+        if signature not in seen_audio_budgets:
+            attempts.append((480, synchronized_cap, budget))
+            seen_audio_budgets.add(signature)
+    # Maintain the legacy command-line controls on attempt one, while applying
+    # the requested 1280→960→640→480 fallback sequence thereafter.
+    attempts[0] = (media_long_edge, max_inline_frames)
+    for attempt in attempts:
+        edge, cap = attempt[0], attempt[1]
+        audio_budget = attempt[2] if len(attempt) > 2 else 0
+        try:
+            media_parts = build_media_parts(
+                path, long_edge=edge, fps=media_fps, max_frames=cap,
+                ffmpeg_timeout_sec=ffmpeg_timeout_sec, include_audio=include_audio,
+                jpeg_q=jpeg_q, audio_bitrate_kbps=audio_bitrate_kbps,
+                audio_budget_sec=audio_budget,
+            )
+            if not media_parts:
+                raise RuntimeError("no media parts produced")
+            payload = build_payload(
+                media_parts, prompt, temperature=temperature,
+                max_output_tokens=max_output_tokens, thinking_budget=thinking_budget,
+            )
+            resp = call_generate(
+                generate_url=generate_url, api_key=api_key, payload=payload,
+                timeout_sec=generate_timeout_sec,
+            )
+            frame_budget = cap or max(1, int(duration * media_fps + 0.5))
+            selected_windows = (
+                _even_audio_windows(duration, audio_budget, frame_budget)
+                if audio_budget > 0 else [(0.0, duration)]
+            )
+            selected_profile = {
+                "fallback_policy": "resolution_then_frame_halving_then_synchronized_av_window_budget_halving; selected_timeline_coverage_is_recorded",
+                "long_edge_px": edge,
+                "frame_budget": frame_budget,
+                "encoded_video_frame_count": sum(
+                    1 for part in media_parts
+                    if isinstance(part, dict)
+                    and (part.get("inlineData") or {}).get("mimeType") == "image/jpeg"
+                ),
+                "audio_budget_sec": (
+                    int(sum(length for _, length in selected_windows))
+                    if include_audio else 0
+                ),
+                "requested_audio_budget_sec": audio_budget or int(duration),
+                "requested_audio_window_count": (
+                    len(_even_audio_windows(duration, audio_budget))
+                    if audio_budget > 0 else 1
+                ),
+                "encoded_audio_window_count": sum(
+                    1 for part in media_parts
+                    if isinstance(part, dict)
+                    and (part.get("inlineData") or {}).get("mimeType") == "audio/mp4"
+                ),
+                "audio_window_selection": (
+                    "no_audio_input" if not include_audio else
+                    "full_track" if audio_budget <= 0 else
+                    "single_midpoint_30s_window_partial_timeline"
+                    if len(selected_windows) == 1 and sum(length for _, length in selected_windows) < duration * 0.999 else
+                    "uniform_30s_windows"
+                    if len(selected_windows) == len(_even_audio_windows(duration, audio_budget)) else
+                    "uniform_30s_windows_capped_by_frame_budget"
+                ),
+                "audio_windows": selected_windows if include_audio else [],
+                "api_token_usage": resp.get("usageMetadata"),
+            }
+            if include_audio:
+                selected_profile.update(
+                    timeline_coverage_profile(
+                        selected_windows,
+                        duration,
+                        full_track=(audio_budget <= 0),
+                    )
+                )
+            else:
+                selected_profile.update({
+                    "audio_timeline_coverage": "no_audio_input",
+                    "audio_timeline_coverage_fraction": 0.0,
+                })
+            break
+        except Exception as e:
+            last_error = str(e)
+            if not any(marker in last_error.lower() for marker in retryable_text):
+                break
+    if resp is None:
+        return _fail(last_error or "evaluation failed")
 
     raw_text = parse_response_text(resp)
     predicted = parse_response_to_prediction(raw_text) if raw_text.strip() else []
@@ -391,6 +542,7 @@ def evaluate_one(
         processing_time_sec=time.time() - t0,
         raw_model_text=raw_text,
         local_video_path=str(path),
+        media_profile=selected_profile,
     )
 
 # ---------------------------------------------------------------------------
@@ -422,7 +574,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--thinking-budget", type=int, default=None,
                    help="generationConfig.thinkingConfig.thinkingBudget (omit for API default)")
 
-    p.add_argument("--media-long-edge", type=int, default=360,
+    p.add_argument("--media-long-edge", type=int, default=1280,
                    help="Max width/height of sampled frames (px)")
     p.add_argument("--media-fps", type=float, default=1.0,
                    help="Video frame sampling rate for ffmpeg")

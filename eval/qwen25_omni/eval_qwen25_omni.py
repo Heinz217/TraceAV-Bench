@@ -17,6 +17,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common_av_input import fallback_profiles, is_capacity_error, prepare_av_video, probe_media
 import requests
 from tqdm import tqdm
 
@@ -163,6 +165,7 @@ class EvaluationMetrics:
     raw_model_text: Optional[str] = None
     local_video_path: Optional[str] = None
     http_status: Optional[int] = None
+    media_profile: Optional[Dict[str, Any]] = None
 
 
 def item_key(it: Dict[str, Any]) -> Tuple[str, int]:
@@ -289,6 +292,7 @@ def evaluate_one(
     temperature: float,
     max_tokens: int,
     timeout_sec: int,
+    frame_budget: int,
 ) -> EvaluationMetrics:
     t0 = time.time()
     hop = hop_metadata_from_item(item)
@@ -315,36 +319,55 @@ def evaluate_one(
     if not path:
         return _fail(f"video not found for video_id={video_id!r}")
 
-    raw = path.read_bytes()
-    b64 = base64.standard_b64encode(raw).decode("ascii")
-    mime = guess_mime(path)
-
     prompt = build_user_prompt(question, {str(k): str(v) for k, v in options.items()})
-    content = [
-        {"type": "text", "text": prompt},
-        {"type": "video_url", "video_url": {"url": f"data:{mime};base64,{b64}"}},
-    ]
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": content}],
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
     headers: Dict[str, str] = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
-    r, err = post_chat_with_retries(chat_url, headers, payload, timeout_sec=timeout_sec)
-    if err:
-        return _fail(err)
-    if r.status_code >= 400:
-        return _fail(f"HTTP {r.status_code}: {(r.text or '')[:2000]}", http_status=r.status_code)
-
     try:
-        body_json = r.json()
+        duration = float(probe_media(path)["duration_sec"])
+        response = None
+        last_error = ""
+        selected_profile = None
+        for edge, frames, audio_budget in fallback_profiles(duration, frame_budget):
+            with prepare_av_video(
+                path, frame_budget=frames, long_edge=edge,
+                audio_budget_sec=audio_budget,
+            ) as (sampled_path, profile):
+                b64 = base64.standard_b64encode(sampled_path.read_bytes()).decode("ascii")
+                payload = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "video_url", "video_url": {
+                            "url": f"data:video/mp4;base64,{b64}"
+                        }},
+                    ]}],
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
+                }
+                r, err = post_chat_with_retries(chat_url, headers, payload, timeout_sec=timeout_sec)
+                if err:
+                    return _fail(err)
+                if r.status_code >= 400:
+                    last_error = f"HTTP {r.status_code}: {(r.text or '')[:2000]}"
+                    if is_capacity_error(r.status_code, r.text or ""):
+                        continue
+                    return _fail(last_error, http_status=r.status_code)
+                try:
+                    body_json = r.json()
+                except Exception as e:
+                    return _fail(f"invalid JSON: {e}", http_status=r.status_code)
+                response = (r, body_json)
+                selected_profile = dict(profile)
+                selected_profile["api_token_usage"] = body_json.get("usage")
+                break
+        if response is None:
+            return _fail(last_error or "Media-size fallback ladder exhausted")
     except Exception as e:
-        return _fail(f"invalid JSON: {e}", http_status=r.status_code)
+        return _fail(f"AV preprocessing failed: {e}")
 
+    r, body_json = response
     raw_text = parse_openai_assistant_text(body_json)
     pred = parse_response_to_prediction(raw_text) if raw_text.strip() else []
     return EvaluationMetrics(
@@ -356,7 +379,7 @@ def evaluate_one(
         api_success=True, error_message=None,
         processing_time_sec=time.time() - t0,
         raw_model_text=raw_text, local_video_path=str(path),
-        http_status=r.status_code, **hop,
+        http_status=r.status_code, media_profile=selected_profile, **hop,
     )
 
 
@@ -382,6 +405,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--temperature", type=float, default=0.0)
     p.add_argument("--max-tokens", type=int, default=512)
     p.add_argument("--timeout-sec", type=int, default=600)
+    p.add_argument("--video-frames", type=int,
+                   default=int(os.environ.get("QWEN25_OMNI_MAX_FRAMES", "384")))
     p.add_argument("--output-root", type=Path, default=None)
     return p.parse_args()
 
@@ -438,6 +463,8 @@ def main() -> int:
             "temperature": args.temperature,
             "max_tokens": args.max_tokens,
             "timeout_sec": args.timeout_sec,
+            "video_frames": args.video_frames,
+            "media_fallback": "1280/960/640/480 px; halve frames; then halve synchronized audio windows",
             "item_count": len(pool),
         },
     )
@@ -460,6 +487,7 @@ def main() -> int:
                 temperature=args.temperature,
                 max_tokens=args.max_tokens,
                 timeout_sec=args.timeout_sec,
+                frame_budget=args.video_frames,
             ): it
             for it in pool
         }
